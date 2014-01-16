@@ -8,8 +8,10 @@ from .ImageHost import ImageHost
 class SomeImage(ImageHost):
     """Uploading class for someimage.com"""
 
-    UPLOAD_URL  = 'http://someimage.com/upload.php'
-    DONE_URL    = 'http://someimage.com/done'
+    URL         = 'http://someimage.com'
+    LOGIN       = URL + '/index.php'
+    UPLOAD      = URL + '/upload.php'
+    DONE        = URL + '/done'
     THUMB_SIZES = ['w100', 'w150', 'w200', 'w250', 'w300', 'w350',
                    'h100', 'h150', 'h200', 'h250', 'h300', 'h350']
 
@@ -17,13 +19,22 @@ class SomeImage(ImageHost):
         super(SomeImage, self).__init__()
         self.username = username
         self.password = password
+
         self._session = requests.Session()
         self._soup    = None
         self._html    = None
         self._bbcode  = None
         self._direct  = None
         self._gallery = None
-        # TODO: login if username and password are supplied
+
+        # Login
+        if username and password:
+            data = { 
+                        'act'      : 'takelogin',
+                        'username' : username,
+                        'password' : password 
+                   }
+            self._session.post(SomeImage.LOGIN, data=data)
 
     def upload(self, images, safe=True, thumb_size='w200', gallery=True, 
                gallery_name='Gallery 1'):
@@ -52,14 +63,17 @@ class SomeImage(ImageHost):
                     'galleryname'  : gallery_name
                }
 
+        # Reinitalizing gives a new upload session, preventing multiple calls
+        # to upload from having their results collide
+        self.__init__(self.username, self.password)
         # TODO: Check HTTP response in case of error
         for image in images:
             filename        = os.path.basename(image)
             data['name']    = filename
             files           = { 'file' : open(image, 'rb') }
-            self._session.post(SomeImage.UPLOAD_URL, data=data, files=files)
+            self._session.post(SomeImage.UPLOAD, data=data, files=files)
 
-        self.result = self._session.get(SomeImage.DONE_URL)
+        self.result = self._session.get(SomeImage.DONE)
         self.soup   = BeautifulSoup(self.result.text)
 
         self._html    = self._get_html()
